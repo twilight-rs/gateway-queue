@@ -1,0 +1,20 @@
+[package]
+authors = ["Zeyla Hellyer <zeyla@hellyer.dev>"]
+documentation = "https://dawn.valley.cafe/chapter_3_services/section_5_gateway_queue.html"
+edition = "2018"
+homepage = "https://github.com/dawn-rs/gateway-queue"
+include = ["src/*.rs", "Cargo.toml"]
+keywords = ["discord", "discord-api", "dawn"]
+license = "ISC"
+name = "dawn-gateway-queue"
+publish = false
+readme = "README.md"
+repository = "https://github.com/dawn-rs/gateway-queue.git"
+version = "0.1.0"
+
+[dependencies]
+dawn-gateway = { git = "https://github.com/dawn-rs/dawn" }
+hyper = "0.13.0-alpha.4"
+log = "0.4"
+pretty_env_logger = "0.3"
+tokio = "0.2.0-alpha.6"
