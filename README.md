@@ -41,25 +41,25 @@ The request will get a response once the request has gone through the queue.
 If you're using Docker, you can clone the repo and run:
 
 ```sh
-$ docker build . -t dawn-gateway-queue
-$ docker run -itd -e HOST=0.0.0.0 -e PORT=5000 dawn-gateway-queue 
+$ docker build . -t twilight-gateway-queue
+$ docker run -itd -e HOST=0.0.0.0 -e PORT=5000 twilight-gateway-queue
 ```
 
 If you're not, you can compile it via Cargo:
 
 ```sh
 $ cargo build --release
-$ HOST=0.0.0.0 PORT=5000 ./target/release/dawn-gateway-queue
+$ HOST=0.0.0.0 PORT=5000 ./target/release/twilight-gateway-queue
 ```
 
 `HOST` and `PORT` are the only two environment variables.
 
-[ci-badge]: https://github.com/dawn-rs/gateway-queue/workflows/Test/badge.svg
-[ci]: https://github.com/dawn-rs/gateway-queue/actions
-[docs]: https://dawn.valley.cafe/chapter_3_services/section_5_gateway_queue.html
+[ci-badge]: https://github.com/twilight-rs/gateway-queue/workflows/Test/badge.svg
+[ci]: https://github.com/twilight-rs/gateway-queue/actions
+[docs]: https://twilight-rs.github.io/chapter_3_services/section_5_gateway_queue.html
 [docs-badge]: https://img.shields.io/badge/docs-online-5023dd.svg?style=flat-square
 [license-badge]: https://img.shields.io/badge/license-ISC-blue.svg?style=flat-square
 [license]: https://opensource.org/licenses/ISC
-[LICENSE.md]: https://github.com/dawn-rs/gateway-queue/blob/master/LICENSE.md
-[rust badge]: https://img.shields.io/badge/rust-1.39+-(beta)-93450a.svg?style=flat-square
-[rust link]: https://blog.rust-lang.org/2019/09/30/Async-await-hits-beta.html
+[LICENSE.md]: https://github.com/twilight-rs/gateway-queue/blob/master/LICENSE.md
+[rust badge]: https://img.shields.io/badge/rust-1.44+-93450a.svg?style=flat-square
+[rust link]: https://blog.rust-lang.org/2020/06/04/Rust-1.44.0.html

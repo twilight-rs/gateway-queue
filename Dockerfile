@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly-slim as build
+FROM rustlang/rust:1.44.0-slim as build
 
 RUN apt-get update
 RUN apt-get install musl-tools -y

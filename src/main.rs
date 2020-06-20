@@ -1,11 +1,7 @@
-use dawn_gateway::queue::{LocalQueue, Queue};
 use hyper::{
     body::Body,
     server::{conn::AddrStream, Server},
-    service,
-    Error as HyperError,
-    Request,
-    Response,
+    service, Error as HyperError, Request, Response,
 };
 use log::{debug, error, info};
 use std::{
@@ -14,6 +10,7 @@ use std::{
     net::{IpAddr, SocketAddr},
     str::FromStr,
 };
+use twilight_gateway::queue::{LocalQueue, Queue};
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
@@ -21,9 +18,9 @@ const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 async fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::try_init_timed()?;
 
-    let host_raw = env::var("HOST").unwrap_or("0.0.0.0".into());
+    let host_raw = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let host = IpAddr::from_str(&host_raw)?;
-    let port = env::var("PORT").unwrap_or("80".into()).parse()?;
+    let port = env::var("PORT").unwrap_or_else(|_| "80".into()).parse()?;
 
     let queue = LocalQueue::new();
 
@@ -40,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let queue = queue.clone();
 
                 async move {
-                    queue.request().await;
+                    queue.request([0, 0]).await;
 
                     let body = Body::from(PROCESSED.to_vec());
 
