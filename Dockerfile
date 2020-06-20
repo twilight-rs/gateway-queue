@@ -39,7 +39,7 @@ WORKDIR /app
 # And now copy the binary over from the build container. The build container is
 # based on a heavy image.
 COPY --from=build \
-    /app/target/x86_64-unknown-linux-musl/release/dawn-gateway-queue \
-    ./dawn-gateway-queue
+    /app/target/x86_64-unknown-linux-musl/release/twilight-gateway-queue \
+    ./twilight-gateway-queue
 
-ENTRYPOINT ./dawn-gateway-queue
+ENTRYPOINT ./twilight-gateway-queue
