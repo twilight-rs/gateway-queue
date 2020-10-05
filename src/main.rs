@@ -16,6 +16,9 @@ const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info");
+    }
     pretty_env_logger::try_init_timed()?;
 
     let host_raw = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
