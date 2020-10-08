@@ -10,7 +10,7 @@ use std::{
     net::{IpAddr, SocketAddr},
     str::FromStr,
 };
-use twilight_gateway::queue::{LocalQueue, Queue};
+use twilight_gateway_queue::{LocalQueue, Queue};
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 

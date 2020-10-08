@@ -13,11 +13,8 @@ repository = "https://github.com/twilight-rs/gateway-queue.git"
 version = "0.1.0"
 
 [dependencies]
-twilight-gateway = "0.1"
+twilight-gateway-queue = "0.1"
 hyper = "0.13"
 log = "0.4"
 pretty_env_logger = "0.4"
 tokio = { version = "0.2", default-features = false, features = ["rt-core", "macros"] }
-
-[profile.release]
-lto = "thin"
