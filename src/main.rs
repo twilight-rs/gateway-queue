@@ -28,8 +28,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let host = IpAddr::from_str(&host_raw)?;
     let port = env::var("PORT").unwrap_or_else(|_| "80".into()).parse()?;
 
-    let queue: Arc<Box<dyn Queue>> = match env::var("TOKEN") {
-        Ok(token) => {
+    let queue: Arc<Box<dyn Queue>> = {
+        if let Ok(token) = env::var("DISCORD_TOKEN") {
             let http_client = Client::new(token);
             let gateway = http_client
                 .gateway()
@@ -47,8 +47,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .await,
             ))
+        } else {
+            Arc::new(Box::new(LocalQueue::new()))
         }
-        Err(_) => Arc::new(Box::new(LocalQueue::new())),
     };
 
     let address = SocketAddr::from((host, port));
