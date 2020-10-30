@@ -5,12 +5,15 @@ use hyper::{
 };
 use log::{debug, error, info};
 use std::{
+    convert::TryInto,
     env,
     error::Error,
     net::{IpAddr, SocketAddr},
     str::FromStr,
+    sync::Arc,
 };
-use twilight_gateway_queue::{LocalQueue, Queue};
+use twilight_gateway_queue::{LargeBotQueue, LocalQueue, Queue};
+use twilight_http::Client;
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
@@ -25,7 +28,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let host = IpAddr::from_str(&host_raw)?;
     let port = env::var("PORT").unwrap_or_else(|_| "80".into()).parse()?;
 
-    let queue = LocalQueue::new();
+    let queue: Arc<Box<dyn Queue>> = {
+        if let Ok(token) = env::var("DISCORD_TOKEN") {
+            let http_client = Client::new(token);
+            let gateway = http_client
+                .gateway()
+                .authed()
+                .await
+                .expect("Cannot fetch gateway information");
+            Arc::new(Box::new(
+                LargeBotQueue::new(
+                    gateway
+                        .session_start_limit
+                        .max_concurrency
+                        .try_into()
+                        .unwrap(),
+                    &http_client,
+                )
+                .await,
+            ))
+        } else {
+            Arc::new(Box::new(LocalQueue::new()))
+        }
+    };
 
     let address = SocketAddr::from((host, port));
 
