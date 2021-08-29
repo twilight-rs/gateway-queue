@@ -13,9 +13,9 @@ repository = "https://github.com/twilight-rs/gateway-queue.git"
 version = "0.1.0"
 
 [dependencies]
-twilight-gateway-queue = "0.2"
-twilight-http = "0.2"
-hyper = "0.13"
-log = "0.4"
-pretty_env_logger = "0.4"
-tokio = { version = "0.2", default-features = false, features = ["rt-core", "macros"] }
+twilight-gateway-queue = "0.6"
+twilight-http = "0.6"
+hyper = { version = "0.14", default-features = false, features = ["http1", "server"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.2.20", default-features = false, features = ["env-filter", "ansi", "fmt"] }
+tokio = { version = "1", default-features = false, features = ["rt", "macros"] }
