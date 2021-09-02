@@ -38,7 +38,7 @@ The request will get a response once the request has gone through the queue.
 
 ### Using with large bots
 
-If the bot has access to bucketed indentify you will have to make slight
+If the bot has access to bucketed identify you will have to make slight
 configuration changes. Firstly you will need to set the `DISCORD_TOKEN`
 environment variable so it is able to fetch the remaining identifies and what
 the `max_concurrency` is. Secondly you will need to set the query parameter
