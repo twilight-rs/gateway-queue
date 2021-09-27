@@ -18,6 +18,25 @@ use twilight_http::Client;
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
+#[cfg(windows)]
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to install CTRL+C signal handler");
+}
+
+#[cfg(unix)]
+async fn shutdown_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+
+    tokio::select! {
+        _ = sigint.recv() => {},
+        _ = sigterm.recv() => {},
+    };
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
@@ -82,9 +101,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let server = Server::bind(&address).serve(service);
 
+    let graceful = server.with_graceful_shutdown(shutdown_signal());
+
     info!("Listening on http://{}", address);
 
-    if let Err(why) = server.await {
+    if let Err(why) = graceful.await {
         error!("Fatal server error: {}", why);
     }
 

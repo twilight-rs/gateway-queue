@@ -27,7 +27,7 @@ jobs:
             docker build -t gateway-queue:amd64 .
       - name: Build for aarch64
         run: |
-            docker build --no-cache --build-arg RUST_TARGET=aarch64-unknown-linux-musl --build-arg MUSL_TARGET=aarch64-linux-musl --build-arg FINAL_TARGET=arm64v8 -t gateway-queue:armv8 .
+            docker build --no-cache --build-arg RUST_TARGET=aarch64-unknown-linux-musl --build-arg MUSL_TARGET=aarch64-linux-musl -t gateway-queue:armv8 .
       - name: Create manifest and push it
         if: env.DOCKER_USERNAME
         run: |
