@@ -3,7 +3,6 @@ use hyper::{
     server::{conn::AddrStream, Server},
     service, Error as HyperError, Request, Response,
 };
-use log::{debug, error, info};
 use std::{
     convert::TryInto,
     env,
@@ -12,6 +11,8 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+use tracing::{debug, error, info};
+use tracing_subscriber::EnvFilter;
 use twilight_gateway_queue::{LargeBotQueue, LocalQueue, Queue};
 use twilight_http::Client;
 
@@ -19,10 +20,11 @@ const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info");
-    }
-    pretty_env_logger::try_init_timed()?;
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .init();
 
     let host_raw = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let host = IpAddr::from_str(&host_raw)?;
@@ -34,11 +36,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let gateway = http_client
                 .gateway()
                 .authed()
+                .exec()
                 .await
                 .expect("Cannot fetch gateway information");
             Arc::new(Box::new(
                 LargeBotQueue::new(
                     gateway
+                        .model()
+                        .await?
                         .session_start_limit
                         .max_concurrency
                         .try_into()
