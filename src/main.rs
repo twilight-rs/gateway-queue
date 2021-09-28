@@ -11,7 +11,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use twilight_gateway_queue::{LargeBotQueue, LocalQueue, Queue};
 use twilight_http::Client;
