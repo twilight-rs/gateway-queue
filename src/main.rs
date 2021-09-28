@@ -75,18 +75,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 let mut shard = None;
 
-                if let Ok(url) = Url::parse(&request.uri().to_string()) {
-                    for (k, v) in url.query_pairs() {
-                        if k == "shard" {
-                            shard = v.parse::<u64>().ok();
+                if big_queue {
+                    if let Ok(url) = Url::parse(&request.uri().to_string()) {
+                        for (k, v) in url.query_pairs() {
+                            if k == "shard" {
+                                shard = v.parse::<u64>().ok();
+                            }
                         }
                     }
-                }
 
-                if shard.is_none() && big_queue {
-                    info!("No shard id set, defaulting to 0. Will not bucket requests correctly!");
+                    if shard.is_none() {
+                        warn!("No shard id set, defaulting to 0. Will not bucket requests correctly!");
+                    }
                 }
-
                 async move {
                     queue.request([shard.unwrap_or(0), 1]).await;
 
