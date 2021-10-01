@@ -11,10 +11,11 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use twilight_gateway_queue::{LargeBotQueue, LocalQueue, Queue};
 use twilight_http::Client;
+use url::Url;
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
@@ -30,6 +31,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let host = IpAddr::from_str(&host_raw)?;
     let port = env::var("PORT").unwrap_or_else(|_| "80".into()).parse()?;
 
+    let big_queue: bool;
+
     let queue: Arc<Box<dyn Queue>> = {
         if let Ok(token) = env::var("DISCORD_TOKEN") {
             let http_client = Client::new(token);
@@ -39,20 +42,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .exec()
                 .await
                 .expect("Cannot fetch gateway information");
+            let concurrency = gateway
+                .model()
+                .await?
+                .session_start_limit
+                .max_concurrency
+                .try_into()
+                .unwrap();
+
+            big_queue = concurrency > 1;
+
             Arc::new(Box::new(
-                LargeBotQueue::new(
-                    gateway
-                        .model()
-                        .await?
-                        .session_start_limit
-                        .max_concurrency
-                        .try_into()
-                        .unwrap(),
-                    &http_client,
-                )
-                .await,
+                LargeBotQueue::new(concurrency, &http_client).await,
             ))
         } else {
+            big_queue = false;
             Arc::new(Box::new(LocalQueue::new()))
         }
     };
@@ -66,11 +70,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let queue = queue.clone();
 
         async move {
-            Ok::<_, HyperError>(service::service_fn(move |_: Request<Body>| {
+            Ok::<_, HyperError>(service::service_fn(move |request: Request<Body>| {
                 let queue = queue.clone();
 
+                let mut shard = None;
+
+                if big_queue {
+                    if let Ok(url) = Url::parse(&request.uri().to_string()) {
+                        for (k, v) in url.query_pairs() {
+                            if k == "shard" {
+                                shard = v.parse::<u64>().ok();
+                            }
+                        }
+                    }
+
+                    if shard.is_none() {
+                        warn!("No shard id set, defaulting to 0. Will not bucket requests correctly!");
+                    }
+                }
                 async move {
-                    queue.request([0, 0]).await;
+                    queue.request([shard.unwrap_or(0), 1]).await;
 
                     let body = Body::from(PROCESSED.to_vec());
 

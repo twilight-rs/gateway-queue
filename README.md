@@ -36,6 +36,18 @@ reqwest::get("http://gateway-queue").await?;
 No headers, body, or particular method need to be set. They're all ignored.
 The request will get a response once the request has gone through the queue.
 
+### Using with large bots
+
+If the bot has access to bucketed identify you will have to make slight
+configuration changes. Firstly you will need to set the `DISCORD_TOKEN`
+environment variable so it is able to fetch the remaining identifies and what
+the `max_concurrency` is. Secondly you will need to set the query parameter
+`shard` to the ID of the identifying shard.
+
+```rust
+reqwest::get("http://gateway-queue?shard=42").await?;
+```
+
 ### Running it
 
 If you're using Docker, you can clone the repo and run:
