@@ -55,6 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let queue: Arc<Box<dyn Queue>> = {
         if let Ok(token) = env::var("DISCORD_TOKEN") {
             let http_client = Client::new(token);
+
             let gateway = http_client
                 .gateway()
                 .authed()
