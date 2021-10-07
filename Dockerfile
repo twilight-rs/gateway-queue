@@ -2,19 +2,15 @@
 ARG RUST_TARGET="x86_64-unknown-linux-musl"
 # Musl target, either x86_64-linux-musl, aarch64-linux-musl, arm-linux-musleabi, etc.
 ARG MUSL_TARGET="x86_64-linux-musl"
-# This ONLY works with defaults which is rather annoying
-# but better than nothing
-# Uses docker's own naming for architectures
-# e.g. x86_64 -> amd64, aarch64 -> arm64v8, arm -> arm32v7
-ARG FINAL_TARGET="amd64"
 
 FROM alpine:latest as build
 ARG RUST_TARGET
 ARG MUSL_TARGET
+ENV RUSTFLAGS="-Lnative=/usr/lib"
 
 RUN apk upgrade && \
     apk add curl gcc musl-dev && \
-    curl -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain nightly -y
+    curl -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain nightly --component rust-src -y
 
 RUN source $HOME/.cargo/env && \
     if [ "$RUST_TARGET" != $(rustup target list --installed) ]; then \
@@ -38,8 +34,9 @@ COPY ./Cargo.toml ./Cargo.toml
 
 # We need a source directory so that it builds the dependencies and an empty
 # binary.
-RUN mkdir src/
-RUN echo 'fn main() {}' > ./src/main.rs
+RUN mkdir src/ && mkdir .cargo/
+RUN echo -e '[unstable]\nbuild-std = ["std", "panic_abort"]\n' > ./.cargo/config && \
+    echo 'fn main() {}' > ./src/main.rs
 RUN source $HOME/.cargo/env && \
     cargo build --release \
         --target="$RUST_TARGET"
@@ -63,13 +60,10 @@ RUN source $HOME/.cargo/env && \
     cp target/$RUST_TARGET/release/twilight-gateway-queue /twilight-gateway-queue && \
     actual-strip /twilight-gateway-queue
 
-FROM docker.io/${FINAL_TARGET}/alpine:latest
-ARG TARGET
-
-WORKDIR /app
+FROM scratch
 
 # And now copy the binary over from the build container. The build container is
 # based on a heavy image.
-COPY --from=build /twilight-gateway-queue /app/twilight-gateway-queue
+COPY --from=build /twilight-gateway-queue /twilight-gateway-queue
 
-CMD ./twilight-gateway-queue
+CMD ["./twilight-gateway-queue"]
