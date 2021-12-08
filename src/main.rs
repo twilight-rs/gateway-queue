@@ -3,6 +3,7 @@ use hyper::{
     server::{conn::AddrStream, Server},
     service, Error as HyperError, Request, Response,
 };
+use serde::Deserialize;
 use std::{
     convert::TryInto,
     env,
@@ -15,7 +16,6 @@ use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 use twilight_gateway_queue::{LargeBotQueue, LocalQueue, Queue};
 use twilight_http::Client;
-use url::Url;
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
 
@@ -38,7 +38,12 @@ async fn shutdown_signal() {
     };
 }
 
-#[tokio::main]
+#[derive(Deserialize)]
+struct QueryParameters {
+    shard: u64,
+}
+
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -54,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let queue: Arc<Box<dyn Queue>> = {
         if let Ok(token) = env::var("DISCORD_TOKEN") {
-            let http_client = Client::new(token);
+            let http_client = Arc::new(Client::new(token));
 
             let gateway = http_client
                 .gateway()
@@ -73,9 +78,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             big_queue = concurrency > 1;
 
-            Arc::new(Box::new(
-                LargeBotQueue::new(concurrency, &http_client).await,
-            ))
+            Arc::new(Box::new(LargeBotQueue::new(concurrency, http_client).await))
         } else {
             big_queue = false;
             Arc::new(Box::new(LocalQueue::new()))
@@ -97,11 +100,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let mut shard = None;
 
                 if big_queue {
-                    if let Ok(url) = Url::parse(&request.uri().to_string()) {
-                        for (k, v) in url.query_pairs() {
-                            if k == "shard" {
-                                shard = v.parse::<u64>().ok();
-                            }
+                    if let Some(query) = request.uri().query() {
+                        if let Ok(params) = serde_urlencoded::from_str::<QueryParameters>(query) {
+                            shard = Some(params.shard);
                         }
                     }
 
