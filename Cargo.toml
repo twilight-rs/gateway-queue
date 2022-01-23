@@ -13,13 +13,14 @@ repository = "https://github.com/twilight-rs/gateway-queue.git"
 version = "0.1.0"
 
 [dependencies]
-twilight-gateway-queue = { version = "0.6", default-features = false, features = ["rustls-webpki-roots"] }
-twilight-http = { version = "0.6", default-features = false, features = ["rustls-webpki-roots"] }
+twilight-gateway-queue = { version = "0.9", default-features = false, features = ["rustls-webpki-roots", "tracing"] }
+twilight-http = { version = "0.9", default-features = false, features = ["rustls-webpki-roots", "tracing"] }
 hyper = { version = "0.14", default-features = false, features = ["http1", "server"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_urlencoded = { version = "0.7", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
-tracing-subscriber = { version = "0.2.20", default-features = false, features = ["env-filter", "ansi", "fmt"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "ansi", "fmt"] }
 tokio = { version = "1", default-features = false, features = ["rt", "macros", "signal"] }
-url = { version = "2.2.2", default-features = false }
 
 [profile.release]
 codegen-units = 1
