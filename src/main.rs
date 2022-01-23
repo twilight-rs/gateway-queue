@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let big_queue: bool;
 
-    let queue: Arc<Box<dyn Queue>> = {
+    let queue: Arc<dyn Queue> = {
         if let Ok(token) = env::var("DISCORD_TOKEN") {
             let http_client = Arc::new(Client::new(token));
 
@@ -78,10 +78,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             big_queue = concurrency > 1;
 
-            Arc::new(Box::new(LargeBotQueue::new(concurrency, http_client).await))
+            Arc::new(LargeBotQueue::new(concurrency, http_client).await)
         } else {
             big_queue = false;
-            Arc::new(Box::new(LocalQueue::new()))
+            Arc::new(LocalQueue::new())
         }
     };
 
