@@ -13,8 +13,8 @@ repository = "https://github.com/twilight-rs/gateway-queue.git"
 version = "0.1.0"
 
 [dependencies]
-twilight-gateway-queue = { version = "0.9", default-features = false, features = ["rustls-webpki-roots", "tracing"] }
-twilight-http = { version = "0.9", default-features = false, features = ["rustls-webpki-roots", "tracing"] }
+twilight-gateway-queue = { version = "0.15", default-features = false, features = ["twilight-http"] }
+twilight-http = { version = "0.15", default-features = false, features = ["rustls-webpki-roots"] }
 hyper = { version = "0.14", default-features = false, features = ["http1", "server"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_urlencoded = { version = "0.7", default-features = false }
