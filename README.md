@@ -50,11 +50,10 @@ reqwest::get("http://gateway-queue?shard=42").await?;
 
 ### Running it
 
-If you're using Docker, you can clone the repo and run:
+If you're using Docker, you can use the prebuilt Docker images from [Github's container registry].
 
 ```sh
-$ docker build . -t twilight-gateway-queue
-$ docker run -itd -e HOST=0.0.0.0 -e PORT=5000 twilight-gateway-queue
+$ docker run -itd -e HOST=0.0.0.0 -e PORT=5000 ghcr.io/twilight-rs/gateway-queue
 ```
 
 If you're not, you can compile it via Cargo:
@@ -70,6 +69,7 @@ $ HOST=0.0.0.0 PORT=5000 ./target/release/twilight-gateway-queue
 [ci]: https://github.com/twilight-rs/gateway-queue/actions
 [docs]: https://twilight-rs.github.io/chapter_3_services/section_5_gateway_queue.html
 [docs-badge]: https://img.shields.io/badge/docs-online-5023dd.svg?style=flat-square
+[Github's container registry]: https://github.com/twilight-rs/gateway-queue/pkgs/container/gateway-queue
 [license-badge]: https://img.shields.io/badge/license-ISC-blue.svg?style=flat-square
 [license]: https://opensource.org/licenses/ISC
 [LICENSE.md]: https://github.com/twilight-rs/gateway-queue/blob/master/LICENSE.md
