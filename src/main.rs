@@ -64,7 +64,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let gateway = http_client
                 .gateway()
                 .authed()
-                .exec()
                 .await
                 .expect("Cannot fetch gateway information");
 
