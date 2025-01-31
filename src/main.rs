@@ -5,16 +5,17 @@ use hyper::{
 };
 use serde::Deserialize;
 use std::{
-    convert::TryInto,
     env,
     error::Error,
     net::{IpAddr, SocketAddr},
     str::FromStr,
     sync::Arc,
+    time::Duration,
 };
+use tokio::{sync::Mutex, time};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
-use twilight_gateway_queue::{LargeBotQueue, LocalQueue, Queue};
+use twilight_gateway_queue::{InMemoryQueue, Queue};
 use twilight_http::Client;
 
 const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
@@ -40,7 +41,7 @@ async fn shutdown_signal() {
 
 #[derive(Deserialize)]
 struct QueryParameters {
-    shard: u64,
+    shard: u32,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -55,32 +56,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let host = IpAddr::from_str(&host_raw)?;
     let port = env::var("PORT").unwrap_or_else(|_| "80".into()).parse()?;
 
-    let big_queue: bool;
-
-    let queue: Arc<dyn Queue> = {
+    let (client, queue) = {
         if let Ok(token) = env::var("DISCORD_TOKEN") {
-            let http_client = Arc::new(Client::new(token));
-
-            let gateway = http_client
+            let client = Client::new(token);
+            let session = client
                 .gateway()
                 .authed()
-                .await
-                .expect("Cannot fetch gateway information");
-
-            let concurrency = gateway
+                .await?
                 .model()
                 .await?
-                .session_start_limit
-                .max_concurrency
-                .try_into()
-                .unwrap();
+                .session_start_limit;
 
-            big_queue = concurrency > 1;
-
-            Arc::new(LargeBotQueue::new(concurrency, http_client).await)
+            let reset_after = Duration::from_millis(session.reset_after);
+            (
+                Some(Arc::new((
+                    client,
+                    Mutex::new((time::Instant::now() + reset_after, session.remaining)),
+                ))),
+                InMemoryQueue::new(
+                    session.max_concurrency,
+                    session.remaining,
+                    reset_after,
+                    session.total,
+                ),
+            )
         } else {
-            big_queue = false;
-            Arc::new(LocalQueue::new())
+            (None, InMemoryQueue::default())
         }
     };
 
@@ -91,6 +92,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let service = service::make_service_fn(move |addr: &AddrStream| {
         debug!("Connection from: {:?}", addr);
         let queue = queue.clone();
+        let client = client.clone();
 
         async move {
             Ok::<_, HyperError>(service::service_fn(move |request: Request<Body>| {
@@ -98,7 +100,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 let mut shard = None;
 
-                if big_queue {
+                if client.is_some() {
                     if let Some(query) = request.uri().query() {
                         if let Ok(params) = serde_urlencoded::from_str::<QueryParameters>(query) {
                             shard = Some(params.shard);
@@ -111,8 +113,45 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         );
                     }
                 }
+                let client = client.clone();
+
                 async move {
-                    queue.request([shard.unwrap_or(0), 1]).await;
+                    if let Some((client, lock)) = client.as_deref() {
+                        let mut lock = lock.lock().await;
+                        if lock.1 > 0 {
+                            lock.1 -= 1;
+                        } else {
+                            time::sleep_until(lock.0).await;
+                            'label: {
+                                if let Ok(res) = client.gateway().authed().await {
+                                    if let Ok(info) = res.model().await {
+                                        let session = info.session_start_limit;
+                                        let reset_after =
+                                            Duration::from_millis(session.reset_after);
+                                        info!("next session start limit in: {reset_after:.2?}");
+
+                                        lock.1 = session.remaining;
+                                        lock.0 = time::Instant::now() + reset_after;
+
+                                        queue.update(
+                                            session.max_concurrency,
+                                            session.remaining,
+                                            reset_after,
+                                            session.total,
+                                        );
+                                        break 'label;
+                                    }
+                                }
+
+                                warn!("unable to get new session limits, skipping (this may cause bad things)");
+                            }
+                        }
+                    }
+
+                    queue
+                        .enqueue(shard.unwrap_or(0))
+                        .await
+                        .expect("never cancels");
 
                     let body = Body::from(PROCESSED.to_vec());
 
