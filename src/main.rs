@@ -1,24 +1,27 @@
-use hyper::{
-    body::Body,
-    server::{conn::AddrStream, Server},
-    service, Error as HyperError, Request, Response,
-};
+use http_body_util::Full;
+use hyper::{body::Bytes, Response};
+use hyper_util::{rt::TokioIo, server::graceful::GracefulShutdown};
 use serde::Deserialize;
 use std::{
     env,
     error::Error,
     net::{IpAddr, SocketAddr},
+    pin::pin,
     str::FromStr,
     sync::Arc,
     time::Duration,
 };
-use tokio::{sync::Mutex, time};
-use tracing::{debug, error, info, warn};
+use tokio::{
+    net::TcpListener,
+    sync::Mutex,
+    time::{self, sleep},
+};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 use twilight_gateway_queue::{InMemoryQueue, Queue};
 use twilight_http::Client;
 
-const PROCESSED: &[u8] = br#"{"message": "You're free to connect now! :)"}"#;
+const PROCESSED: Bytes = Bytes::from_static(br#"{"message": "You're free to connect now! :)"}"#);
 
 #[cfg(windows)]
 async fn shutdown_signal() {
@@ -87,88 +90,112 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let address = SocketAddr::from((host, port));
 
-    // The closure inside `make_service_fn` is run for each connection,
-    // creating a 'service' to handle requests for that specific connection.
-    let service = service::make_service_fn(move |addr: &AddrStream| {
-        debug!("Connection from: {:?}", addr);
-        let queue = queue.clone();
-        let client = client.clone();
-
-        async move {
-            Ok::<_, HyperError>(service::service_fn(move |request: Request<Body>| {
-                let queue = queue.clone();
-
-                let mut shard = None;
-
-                if client.is_some() {
-                    if let Some(query) = request.uri().query() {
-                        if let Ok(params) = serde_urlencoded::from_str::<QueryParameters>(query) {
-                            shard = Some(params.shard);
-                        }
-                    }
-
-                    if shard.is_none() {
-                        warn!(
-                            "No shard id set, defaulting to 0. Will not bucket requests correctly!"
-                        );
-                    }
-                }
-                let client = client.clone();
-
-                async move {
-                    if let Some((client, lock)) = client.as_deref() {
-                        let mut lock = lock.lock().await;
-                        if lock.1 > 0 {
-                            lock.1 -= 1;
-                        } else {
-                            time::sleep_until(lock.0).await;
-                            'label: {
-                                if let Ok(res) = client.gateway().authed().await {
-                                    if let Ok(info) = res.model().await {
-                                        let session = info.session_start_limit;
-                                        let reset_after =
-                                            Duration::from_millis(session.reset_after);
-                                        info!("next session start limit in: {reset_after:.2?}");
-
-                                        lock.1 = session.remaining;
-                                        lock.0 = time::Instant::now() + reset_after;
-
-                                        queue.update(
-                                            session.max_concurrency,
-                                            session.remaining,
-                                            reset_after,
-                                            session.total,
-                                        );
-                                        break 'label;
-                                    }
-                                }
-
-                                warn!("unable to get new session limits, skipping (this may cause bad things)");
-                            }
-                        }
-                    }
-
-                    queue
-                        .enqueue(shard.unwrap_or(0))
-                        .await
-                        .expect("never cancels");
-
-                    let body = Body::from(PROCESSED.to_vec());
-
-                    Ok::<Response<Body>, HyperError>(Response::new(body))
-                }
-            }))
-        }
-    });
-
-    let server = Server::bind(&address).serve(service);
-
-    let graceful = server.with_graceful_shutdown(shutdown_signal());
+    let tcp_listener = TcpListener::bind(address).await?;
+    let server = hyper::server::conn::http1::Builder::new();
+    let graceful = GracefulShutdown::new();
+    let mut shutdown = pin!(shutdown_signal());
 
     info!("Listening on http://{}", address);
 
-    if let Err(why) = graceful.await {
-        error!("Fatal server error: {}", why);
+    loop {
+        tokio::select! {
+            conn = tcp_listener.accept() => {
+                let Ok((stream, _peer_addr)) = conn else {
+                    continue;
+                };
+
+                let stream = TokioIo::new(stream);
+
+                let client = client.clone();
+                let queue = queue.clone();
+
+                let conn = server.serve_connection(stream, hyper::service::service_fn(move |request| {
+                    let queue = queue.clone();
+
+                    let mut shard = None;
+
+                    if client.is_some() {
+                        if let Some(query) = request.uri().query() {
+                            if let Ok(params) = serde_urlencoded::from_str::<QueryParameters>(query) {
+                                shard = Some(params.shard);
+                            }
+                        }
+
+                        if shard.is_none() {
+                            warn!(
+                                "No shard id set, defaulting to 0. Will not bucket requests correctly!"
+                            );
+                        }
+                    }
+                    let client = client.clone();
+
+                    async move {
+                        if let Some((client, lock)) = client.as_deref() {
+                            let mut lock = lock.lock().await;
+                            if lock.1 > 0 {
+                                lock.1 -= 1;
+                            } else {
+                                time::sleep_until(lock.0).await;
+                                'label: {
+                                    if let Ok(res) = client.gateway().authed().await {
+                                        if let Ok(info) = res.model().await {
+                                            let session = info.session_start_limit;
+                                            let reset_after =
+                                                Duration::from_millis(session.reset_after);
+                                            info!("next session start limit in: {reset_after:.2?}");
+
+                                            lock.1 = session.remaining;
+                                            lock.0 = time::Instant::now() + reset_after;
+
+                                            queue.update(
+                                                session.max_concurrency,
+                                                session.remaining,
+                                                reset_after,
+                                                session.total,
+                                            );
+                                            break 'label;
+                                        }
+                                    }
+
+                                    warn!("unable to get new session limits, skipping (this may cause bad things)");
+                                }
+                            }
+                        }
+
+                        queue
+                            .enqueue(shard.unwrap_or(0))
+                            .await
+                            .expect("never cancels");
+
+                        let body = Full::from(PROCESSED);
+
+                        Ok::<Response<Full<Bytes>>, hyper::Error>(Response::new(body))
+                    }
+                }));
+
+                let conn = graceful.watch(conn);
+
+                tokio::spawn(async move {
+                    if let Err(err) = conn.await {
+                        error!("Connection error: {}", err);
+                    }
+                });
+            },
+            _ = shutdown.as_mut() => {
+                drop(tcp_listener);
+                info!("Shutdown signal received, initiating shutdown");
+                break;
+            }
+        }
+    }
+
+    tokio::select! {
+        _ = graceful.shutdown() => {
+            info!("Gracefully shutdown!");
+        },
+        _ = sleep(Duration::from_secs(10)) => {
+            error!("Waited 10 seconds for graceful shutdown, aborting...");
+        }
     }
 
     Ok(())
